@@ -1,0 +1,29 @@
+{
+  "name": "@ccvass/camera-vitals",
+  "version": "0.1.0",
+  "description": "Camera-based vital signs as a standards-mapped data source — pulse, breathing and HRV to LOINC, ready for any RPM pipeline",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "camera-vitals": "./cli.mjs"
+  },
+  "main": "./src/index.mjs",
+  "scripts": {
+    "start": "node cli.mjs",
+    "test": "node --test"
+  },
+  "keywords": [
+    "rppg",
+    "vital-signs",
+    "smartspectra",
+    "loinc",
+    "remote-patient-monitoring",
+    "fhir"
+  ],
+  "dependencies": {
+    "@smartspectra/node-sdk": "^3.5.0"
+  }
+}
