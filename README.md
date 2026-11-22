@@ -122,6 +122,99 @@ await capture({
 });
 ```
 
+## Capture service
+
+For an app to consume the camera, the capture runs where the camera is and
+exposes a small HTTP surface.
+
+```bash
+npm run serve            # http://localhost:8099
+```
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/capture` | start a session: `{ seconds, subject }` → `202 { id }` |
+| `GET` | `/capture/:id` | `{ state, observations, guidance, error }` |
+| `GET` | `/vitals/latest` | newest reading, as FHIR Observations |
+| `POST` | `/second-opinion` | compare against another channel |
+| `GET` | `/health` | `{ status, busy, hasLatest }` |
+
+```bash
+curl -X POST localhost:8099/capture \
+  -H 'content-type: application/json' \
+  -d '{"seconds":30,"subject":"patient-42"}'
+```
+
+Two operational facts the code accounts for, both learned the hard way:
+
+- **The SDK spends about twenty seconds warming up** before the first frame is
+  validated. A 10-second capture takes roughly 30 seconds end to end, so the
+  service's deadline is the requested time plus a minute of slack.
+- **Capture runs in a child process.** A stuck session would otherwise hold the
+  camera until the API died. Isolating it means a hung capture is killed on
+  deadline and an API restart never leaves the device locked.
+
+On a headless host the SDK still needs X11: set `DISPLAY`, or use `--file`
+against a recorded video. Without a display the camera opens and then stalls
+rather than failing, which looks like a hang.
+
+### Second opinion
+
+A camera reading is worth more when it can confirm or contradict something the
+patient already reported. A pulse oximeter says 72; the camera says 74; the
+reading is corroborated. The same pair at 72 and 96 is not a disagreement to
+average away, it is a reason to look.
+
+```bash
+curl -X POST localhost:8099/second-opinion \
+  -H 'content-type: application/json' \
+  -d '{"reference":[{"metric":"PULSE_RATE","valueQuantity":{"value":74},"device":"ble-oximeter"}]}'
+```
+
+```json
+{
+  "verdict": "concordant",
+  "comparisons": [
+    { "metric": "PULSE_RATE", "candidate": 72, "reference": 74, "delta": -2, "tolerance": 5, "verdict": "concordant" }
+  ],
+  "summary": "Camera reading agrees with the reference channel."
+}
+```
+
+Verdicts are `concordant`, `discordant` or `insufficient`. Tolerances default to
+the larger of an absolute or relative margin per metric (`src/reconcile.mjs`)
+and can be overridden per request.
+
+**These tolerances are heuristics chosen for this adapter, not validated
+clinical limits.** A deployment must set its own after comparing against its
+reference device. A `discordant` verdict means "review before acting", never
+"the camera is right".
+
+## med365x integration
+
+Two different things travel to the platform, and keeping them apart matters:
+
+- **The vitals** go over NATS as FHIR Observations, beside the BLE and HealthKit
+  channels, on `med365x.<tenant>.vitals.camera`.
+- **The transmission record** goes over REST
+  (`POST /api/v1/patients/{id}/rpm-transmissions` with `source: "camera-rppg"`)
+  and answers a different question: did the patient transmit today. It is what
+  RPM enrolment and billing count.
+
+A broker outage therefore does not erase the day's adherence, and a REST failure
+does not lose the measurement.
+
+```js
+import { toTransmission, recordTransmission } from "@ccvass/camera-vitals";
+
+const body = toTransmission(observations, { deviceId });
+await recordTransmission({ baseUrl, token, tenantId, patientId, body });
+```
+
+The endpoint requires an active RPM enrolment and the `X-Tenant-Id` header; it
+returns 404 without the enrolment. `recordTransmission` reports the status
+instead of throwing, so a failed transmission record never discards a reading.
+
 ## LOINC mapping
 
 A number without a code is not interoperable. Every metric is mapped to a
@@ -213,6 +306,11 @@ camera ──▶ SmartSpectra SDK ──▶ toObservations ──▶ sink
                                                     ├─ JSONL
                                                     ├─ FHIR R4
                                                     └─ NATS
+
+app ──HTTP──▶ server.mjs ──child process──▶ cli.mjs
+                  │
+                  └─▶ reconcile.mjs ──▶ second opinion
+                  └─▶ med365x.mjs ──▶ rpm-transmissions
 ```
 
 | File | Responsibility |
@@ -220,6 +318,9 @@ camera ──▶ SmartSpectra SDK ──▶ toObservations ──▶ sink
 | `src/capture.mjs` | SDK session, telemetry off, validation translated |
 | `src/loinc.mjs` | Metric → LOINC → FHIR mapping, NATS subject |
 | `src/emit.mjs` | Sinks, loaded lazily |
+| `src/reconcile.mjs` | Second opinion against another channel |
+| `src/med365x.mjs` | Transmission payload and REST client |
+| `server.mjs` | HTTP capture service, capture isolated in a child process |
 | `cli.mjs` | Command-line entry |
 
 ## Tests
@@ -228,8 +329,9 @@ camera ──▶ SmartSpectra SDK ──▶ toObservations ──▶ sink
 npm test
 ```
 
-Covers the mapping, FHIR shape, id constraints, tenant sanitisation and
-tolerance of payload shape changes. No camera or API key needed.
+Covers the LOINC mapping, FHIR shape and id constraints, tenant sanitisation,
+payload-shape tolerance, second-opinion verdicts and the med365x transmission
+contract. No camera or API key needed.
 
 ## License
 

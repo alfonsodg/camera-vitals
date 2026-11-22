@@ -1,7 +1,7 @@
 {
   "name": "@ccvass/camera-vitals",
   "version": "0.1.0",
-  "description": "Camera-based vital signs as a standards-mapped data source — pulse, breathing and HRV to LOINC, ready for any RPM pipeline",
+  "description": "Camera-based vital signs as a standards-mapped data source \u2014 pulse, breathing and HRV to LOINC, ready for any RPM pipeline",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -13,7 +13,8 @@
   "main": "./src/index.mjs",
   "scripts": {
     "start": "node cli.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "serve": "node server.mjs"
   },
   "keywords": [
     "rppg",
