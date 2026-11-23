@@ -14,9 +14,15 @@
 </p>
 
 <p align="center">
-  <a href="docs/camera-vitals-demo.mp4">Demo video</a> ·
+  <a href="https://youtu.be/tTGsnqldHQQ"><b>▶ Watch the demo</b></a> ·
   <a href="docs/MED365X-INTEGRATION.md">med365x integration</a> ·
   <a href="https://med365x.com">med365x.com</a>
+</p>
+
+<p align="center">
+  <a href="https://youtu.be/tTGsnqldHQQ">
+    <img src="https://i.ytimg.com/vi/tTGsnqldHQQ/hqdefault.jpg" alt="camera-vitals demo" width="560">
+  </a>
 </p>
 
 ---
