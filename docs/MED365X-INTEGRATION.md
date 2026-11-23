@@ -1,5 +1,16 @@
 # med365x integration — continuous control of the chronic patient
 
+Platform: **[med365x.com](https://med365x.com)** — remote patient monitoring with
+FHIR R4 / HL7 interoperability and 33 disease profiles.
+
+<p align="center">
+  <img src="mockup-monitor.png" alt="Monitor screen with the camera channel" width="360">
+  <br/>
+  <sub>The existing Monitor screen (PA / FC / SpO2 / Temp, BLE history) with the
+  camera card added: value, confidence, and the second-opinion verdict against
+  the BLE oximeter.</sub>
+</p>
+
 The camera does not replace the chronic patient's devices: it adds a channel that
 does not depend on hardware, and it lets the platform **corroborate** what the
 patient reports. A hypertensive patient who forgot the cuff keeps transmitting

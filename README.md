@@ -1,19 +1,95 @@
 # camera-vitals
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Node 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+<p align="center">
+  <b>Turn a webcam into a LOINC-coded vital-signs source</b><br/>
+  Pulse · Breathing rate · HRV — measured on device, emitted as FHIR R4
+</p>
 
-Turn a webcam into a vital-signs source. Measures **pulse, breathing rate and
-heart-rate variability** from a camera and emits them as **LOINC-coded
-observations**, ready for a remote patient monitoring pipeline.
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-green.svg"></a>
+  <a href="package.json"><img alt="Node 20+" src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg"></a>
+  <img alt="Tests" src="https://img.shields.io/badge/tests-24%20passing-brightgreen.svg">
+  <img alt="LOINC" src="https://img.shields.io/badge/LOINC-8867--4%20%7C%209279--1%20%7C%2080404--7-blue.svg">
+  <img alt="FHIR" src="https://img.shields.io/badge/FHIR-R4%20Observation-orange.svg">
+</p>
+
+<p align="center">
+  <a href="docs/camera-vitals-demo.mp4">Demo video</a> ·
+  <a href="docs/MED365X-INTEGRATION.md">med365x integration</a> ·
+  <a href="https://med365x.com">med365x.com</a>
+</p>
+
+---
+
+## What it is
+
+Remote patient monitoring has a hardware problem. Every vital sign needs
+something to measure it: a cuff, an oximeter, a scale, a BLE wearable. If the
+device is not charged, not paired, or not there, there is no data that day.
+
+Almost every patient already has a camera. This makes that camera count.
 
 No wearable. No BLE device. No screen to photograph. The camera is the sensor.
 
-**[Demo video](docs/camera-vitals-demo.mp4)** ·
-**[med365x integration](docs/MED365X-INTEGRATION.md)** ·
-**[App mockup](docs/mockup-monitor.png)**
+This adapter is the capture channel for
+**[med365x](https://med365x.com)** — a remote patient monitoring platform — but
+it is deliberately standalone and MIT: it is a connector, not a platform, so any
+monitoring product can adopt it.
 
-![Monitor screen with the camera channel](docs/mockup-monitor.png)
+```text
+Bluetooth ─┐
+HealthKit ─┤
+Camera OCR ┼──▶ NATS ──▶ ClickHouse ──▶ 33 disease profiles ──▶ FHIR R4
+Manual ────┤
+Camera rPPG ┘   ← this project
+```
+
+## Architecture
+
+```mermaid
+flowchart LR
+    cam([Camera]) --> sdk[SmartSpectra SDK<br/>rPPG on device]
+    sdk --> cap[src/capture.mjs<br/>telemetry OFF]
+    cap --> loinc[src/loinc.mjs<br/>LOINC + FHIR R4]
+    loinc --> sinks{Output}
+    sinks --> out[JSONL / stdout]
+    sinks --> fhir[FHIR Observation]
+    sinks --> nats[[NATS vitals.camera]]
+
+    fhir --> rec[src/reconcile.mjs<br/>second opinion]
+    rec --> verdict[concordant /<br/>discordant /<br/>insufficient]
+
+    nats --> m365[(med365x)]
+    m365 --> eng[inference-engine<br/>33 profiles]
+    eng --> alert[Clinician alert]
+
+    classDef pub fill:#d1fae5,stroke:#10b981,color:#065f46
+    classDef core fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    class cam,sdk,cap,loinc,sinks,out,fhir,nats pub
+    class rec,verdict,m365,eng,alert core
+```
+
+## The integration, in one screen
+
+The existing med365x Monitor screen (blood pressure, heart rate, SpO2,
+temperature, BLE history) with the camera channel added — value, confidence, and
+the second-opinion verdict against the BLE oximeter.
+
+<p align="center">
+  <img src="docs/mockup-monitor.png" alt="med365x Monitor screen with the camera channel" width="380">
+</p>
+
+Full design — the standalone-service phase and the in-app phase, with sequence
+diagram — in **[docs/MED365X-INTEGRATION.md](docs/MED365X-INTEGRATION.md)**.
+
+## Verified measurement
+
+Real output from a 95-second recording. Pulse **90.4 bpm**, breathing
+**20.5 rpm**, emitted as FHIR R4 with confidence attached:
+
+<p align="center">
+  <img src="docs/capture-cli.png" alt="Terminal capture of a real run" width="880">
+</p>
 
 ```bash
 npm install
@@ -23,16 +99,6 @@ npx camera-vitals --seconds 30
 
 ```json
 {"metric":"PULSE_RATE","subject":"anonymous","code":{"system":"http://loinc.org","code":"8867-4","display":"Heart rate"},"valueQuantity":{"value":68.4,"unit":"/min"}}
-```
-
-## Verified measurement
-
-Pulse **90.4 bpm** and breathing **20.5 rpm** from a 95-second recording, emitted
-as FHIR R4 with confidence attached:
-
-```text
-8867-4     90.4 /min   Heart rate
-9279-1     20.5 /min   Respiratory rate
 ```
 
 24 tests, no camera or API key required: `npm test`.
@@ -349,7 +415,7 @@ HRV confidence stays at zero until the full 60-second window completes. A
 30-second run will report pulse and breathing but no HRV — that is expected,
 not a bug.
 
-## Architecture
+## Module map
 
 ```text
 camera ──▶ SmartSpectra SDK ──▶ toObservations ──▶ sink
@@ -360,7 +426,7 @@ camera ──▶ SmartSpectra SDK ──▶ toObservations ──▶ sink
 
 app ──HTTP──▶ server.mjs ──child process──▶ cli.mjs
                   │
-                  └─▶ reconcile.mjs ──▶ second opinion
+                  ├─▶ reconcile.mjs ──▶ second opinion
                   └─▶ med365x.mjs ──▶ rpm-transmissions
 ```
 
