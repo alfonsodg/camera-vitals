@@ -7,8 +7,11 @@ import { toObservations } from "../src/loinc.mjs";
 import { jsonlSink, multiSink, stdoutSink } from "../src/emit.mjs";
 
 const PAYLOAD = {
-  cardio: { pulseRate: 71.2, hrv: { sdnn: 44.5, rmssd: 33.1 } },
-  breathing: { rate: 13.8 },
+  cardio: {
+    pulseRate: [{ value: 71.2, stable: true, confidence: 90 }],
+    hrv: [{ sdnn: 44.5, rmssd: 33.1, stable: true, confidence: 60 }],
+  },
+  breathing: { rate: [{ value: 13.8, stable: true, confidence: 80 }] },
 };
 
 test("jsonl sink appends one line per observation", async () => {
@@ -45,7 +48,7 @@ test("multi sink survives a failing sink", async () => {
       async close() {},
     };
     const sink = multiSink([broken, jsonlSink(path)]);
-    await sink.write(toObservations({ cardio: { pulseRate: 70 } }));
+    await sink.write(toObservations({ cardio: { pulseRate: [{ value: 70 }] } }));
     await sink.close();
 
     const lines = (await readFile(path, "utf8")).trim().split("\n");

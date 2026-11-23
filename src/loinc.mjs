@@ -44,28 +44,55 @@ export const LOINC = {
 };
 
 /**
- * Read a value out of the SDK's metrics payload.
+ * Read a value out of the SDK's decoded metrics payload.
  *
- * The payload nests values under metric names that differ between SDK builds,
- * so each entry lists the paths it has been seen at. Adding a path is cheaper
- * than chasing a payload shape change across the codebase.
+ * The SDK emits protobuf, and the shape is not what it looks like at first
+ * glance: `pulseRate` and `breathing.rate` are *arrays* of
+ * MeasurementWithConfidence, and `hrv` is an array of Hrv. Each carries a
+ * timestamp, so the newest entry is the reading.
+ *
+ * A measurement is a running window, not a snapshot: taking the last stable
+ * entry is what gives a current value instead of an average of the session.
  */
-const READERS = {
-  PULSE_RATE: ["cardio.pulseRate", "pulseRate", "cardio.pulse_rate"],
-  BREATHING_RATE: ["breathing.rate", "breathing.breathingRate", "rate"],
-  HRV_SDNN: ["cardio.hrv.sdnn", "cardio.hrv.sdNn", "hrv.sdnn"],
-  HRV_RMSSD: ["cardio.hrv.rmssd", "hrv.rmssd"],
-};
-
-function read(obj, path) {
-  const v = path.split(".").reduce((a, k) => (a == null ? a : a[k]), obj);
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
+function lastValue(arr) {
+  if (!Array.isArray(arr) || !arr.length) return null;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const m = arr[i];
+    const v = typeof m === "number" ? m : m?.value;
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+      return {
+        value: v,
+        stable: typeof m === "object" ? m.stable === true : undefined,
+        confidence: typeof m === "object" ? m.confidence : undefined,
+      };
+    }
+  }
+  return null;
 }
 
+function lastHrvField(arr, field) {
+  if (!Array.isArray(arr) || !arr.length) return null;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const v = arr[i]?.[field];
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+      return { value: v, stable: arr[i].stable === true, confidence: arr[i].confidence };
+    }
+  }
+  return null;
+}
+
+/** Locate a value in the decoded payload, trying the shapes the SDK uses. */
+const READERS = {
+  PULSE_RATE: (p) => lastValue(p?.cardio?.pulseRate ?? p?.pulseRate),
+  BREATHING_RATE: (p) => lastValue(p?.breathing?.rate ?? p?.rate),
+  HRV_SDNN: (p) => lastHrvField(p?.cardio?.hrv ?? p?.hrv, "sdnn"),
+  HRV_RMSSD: (p) => lastHrvField(p?.cardio?.hrv ?? p?.hrv, "rmssd"),
+};
+
 /**
- * Turn one SDK metrics payload into a list of observations.
+ * Turn one decoded SDK metrics payload into a list of observations.
  *
- * @param {object} payload   metrics event from SmartSpectra
+ * @param {object} payload   decoded metrics message
  * @param {object} [opts]
  * @param {string} [opts.subject]  pseudonymous patient reference
  * @param {string} [opts.device]   capture device label
@@ -78,29 +105,29 @@ export function toObservations(payload, opts = {}) {
   const at = (opts.at ?? new Date()).toISOString();
   const out = [];
 
-  for (const [metric, paths] of Object.entries(READERS)) {
+  for (const [metric, reader] of Object.entries(READERS)) {
     const def = LOINC[metric];
     if (!def) continue;
 
-    let value = null;
-    for (const path of paths) {
-      value = read(payload, path);
-      if (value !== null) break;
-    }
-    if (value === null || value <= 0) continue;
+    const reading = reader(payload);
+    if (!reading || reading.value <= 0) continue;
 
     out.push({
       metric,
       subject,
       device,
       effectiveDateTime: at,
+      // Confidence rides along so a consumer can ignore weak readings instead
+      // of treating every number as equal.
+      confidence: reading.confidence,
+      stable: reading.stable,
       code: {
         system: "http://loinc.org",
         code: def.code,
         display: def.display,
       },
       valueQuantity: {
-        value: Math.round(value * 10) / 10,
+        value: Math.round(reading.value * 10) / 10,
         unit: def.unit,
         system: def.system,
         code: def.ucum,

@@ -266,6 +266,36 @@ informational purposes. They are not FDA-cleared and must not be used for
 diagnosis or treatment. See the Presage model cards for validated ranges and
 failure conditions.
 
+## Payload shape
+
+The `metrics` event delivers a **protobuf Buffer**, not an object, and the
+decoded shape is not obvious:
+
+- `cardio.pulseRate` is an **array** of `MeasurementWithConfidence`, each with
+  `value`, `confidence`, `stable` and `timestamp`.
+- `breathing.rate` is the same shape.
+- `cardio.hrv` is an array of `Hrv` with `sdnn`, `rmssd`, `meanNn`, `baevsky`.
+
+`src/capture.mjs` registers the generated protobuf class via
+`setMetricsClass()` so `decodeMetrics()` returns a readable message. Note that
+the generated module is **not in the package's `exports` map**, so it cannot be
+required by subpath — it has to be resolved to a file path:
+
+```js
+const pkgJson = require.resolve("@smartspectra/node-sdk/package.json");
+const generated = require(join(dirname(pkgJson), "js/messages/generated.js"));
+setMetricsClass(generated.presage.smartspectra.Metrics);
+```
+
+Without that registration the payload stays a byte array, every frame looks
+empty, and the mapping silently produces nothing — which reads as a framing
+problem when it is not.
+
+Readings are running windows, so the adapter takes the **newest** entry of each
+array and carries `confidence` and `stable` through to the observation. A
+consumer should ignore unstable or zero-confidence values rather than treat
+every number as equal.
+
 ## Measurement quality
 
 The SDK is strict about conditions, and it tells you exactly what is wrong.

@@ -7,7 +7,10 @@ import { toTransmission, SOURCE } from "../src/med365x.mjs";
 const at = new Date("2026-11-22T12:00:00Z");
 
 function camera(pulse) {
-  return toObservations({ cardio: { pulseRate: pulse } }, { subject: "p1", at });
+  return toObservations(
+    { cardio: { pulseRate: [{ value: pulse }] } },
+    { subject: "p1", at }
+  );
 }
 
 function reference(metricValue, code) {
@@ -16,7 +19,7 @@ function reference(metricValue, code) {
 }
 
 test("concordant when inside the tolerance", () => {
-  const result = reconcile(camera(72), reference({ cardio: { pulseRate: 74 } }));
+  const result = reconcile(camera(72), reference({ cardio: { pulseRate: [{ value: 74 }] } }));
   assert.equal(result.verdict, VERDICT.CONCORDANT);
   const c = result.comparisons[0];
   assert.equal(c.delta, -2);
@@ -24,14 +27,14 @@ test("concordant when inside the tolerance", () => {
 });
 
 test("discordant when outside the tolerance", () => {
-  const result = reconcile(camera(72), reference({ cardio: { pulseRate: 96 } }));
+  const result = reconcile(camera(72), reference({ cardio: { pulseRate: [{ value: 96 }] } }));
   assert.equal(result.verdict, VERDICT.DISCORDANT);
   assert.match(summarise(result), /disagrees/);
 });
 
 test("tolerance is the larger of absolute and relative", () => {
   // 8% of 120 is 9.6, larger than the 5 bpm absolute default.
-  const result = reconcile(camera(129), reference({ cardio: { pulseRate: 120 } }));
+  const result = reconcile(camera(129), reference({ cardio: { pulseRate: [{ value: 120 }] } }));
   assert.equal(result.verdict, VERDICT.CONCORDANT);
   assert.equal(result.comparisons[0].tolerance, 9.6);
 });
@@ -44,11 +47,11 @@ test("insufficient when the reference channel has no reading", () => {
 
 test("one discordant metric makes the whole verdict discordant", () => {
   const cam = toObservations(
-    { cardio: { pulseRate: 72 }, breathing: { rate: 30 } },
+    { cardio: { pulseRate: [{ value: 72 }] }, breathing: { rate: [{ value: 30 }] } },
     { subject: "p1", at }
   );
   const ref = toObservations(
-    { cardio: { pulseRate: 73 }, breathing: { rate: 14 } },
+    { cardio: { pulseRate: [{ value: 73 }] }, breathing: { rate: [{ value: 14 }] } },
     { subject: "p1", at }
   );
   const result = reconcile(cam, ref);
@@ -57,7 +60,7 @@ test("one discordant metric makes the whole verdict discordant", () => {
 });
 
 test("tolerances can be overridden per metric", () => {
-  const result = reconcile(camera(80), reference({ cardio: { pulseRate: 86 } }), {
+  const result = reconcile(camera(80), reference({ cardio: { pulseRate: [{ value: 86 }] } }), {
     tolerances: { PULSE_RATE: { absolute: 10, relative: 0 } },
   });
   assert.equal(result.verdict, VERDICT.CONCORDANT);

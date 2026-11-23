@@ -13,11 +13,39 @@
  *   gets. They are translated here so the caller can show them verbatim.
  */
 import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
 const require = createRequire(import.meta.url);
 const sdk = require("@smartspectra/node-sdk");
 
-const { SmartSpectraSDK, MetricType, ValidationCode } = sdk;
+const { SmartSpectraSDK, MetricType, ValidationCode, setMetricsClass, decodeMetrics } = sdk;
+
+/**
+ * The 'metrics' event delivers a protobuf Buffer, not an object. Registering
+ * the generated class lets decodeMetrics() turn it into something readable;
+ * without this every field of the payload looks like an unnamed byte array and
+ * nothing can be mapped to LOINC.
+ *
+ * The generated module is not in the package's `exports` map, so it cannot be
+ * required by subpath — it has to be resolved to a file path first.
+ */
+let decoderReady = false;
+function ensureDecoder() {
+  if (decoderReady) return;
+  try {
+    const pkgJson = require.resolve("@smartspectra/node-sdk/package.json");
+    const generatedPath = join(dirname(pkgJson), "js", "messages", "generated.js");
+    const generated = require(generatedPath);
+    const Metrics = generated?.presage?.smartspectra?.Metrics;
+    if (Metrics) {
+      setMetricsClass(Metrics);
+      decoderReady = true;
+    }
+  } catch {
+    // Leave the raw Buffer in place; the caller sees no observations rather
+    // than a crash.
+  }
+}
 
 /** Plain-English guidance for each validation code the SDK can emit. */
 export const VALIDATION_HINTS = {
@@ -82,6 +110,8 @@ export async function capture(opts) {
 
   if (!apiKey) throw new Error("apiKey is required");
 
+  ensureDecoder();
+
   const instance = new SmartSpectraSDK({
     apiKey,
     requestedMetrics: METRICS,
@@ -98,9 +128,16 @@ export async function capture(opts) {
     onValidation?.(describeValidation(code));
   });
 
-  instance.on("metrics", (payload) => {
+  instance.on("metrics", (buf) => {
     frames++;
-    onObservations?.(payload);
+    if (!decoderReady) return;
+    let decoded;
+    try {
+      decoded = decodeMetrics(buf);
+    } catch {
+      return;
+    }
+    if (decoded) onObservations?.(decoded);
   });
 
   instance.on("processingStatus", (s) => onStatus?.(s));
