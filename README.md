@@ -1,10 +1,19 @@
 # camera-vitals
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Node 20+](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+
 Turn a webcam into a vital-signs source. Measures **pulse, breathing rate and
 heart-rate variability** from a camera and emits them as **LOINC-coded
 observations**, ready for a remote patient monitoring pipeline.
 
 No wearable. No BLE device. No screen to photograph. The camera is the sensor.
+
+**[Demo video](docs/camera-vitals-demo.mp4)** ·
+**[med365x integration](docs/MED365X-INTEGRATION.md)** ·
+**[App mockup](docs/mockup-monitor.png)**
+
+![Monitor screen with the camera channel](docs/mockup-monitor.png)
 
 ```bash
 npm install
@@ -15,6 +24,18 @@ npx camera-vitals --seconds 30
 ```json
 {"metric":"PULSE_RATE","subject":"anonymous","code":{"system":"http://loinc.org","code":"8867-4","display":"Heart rate"},"valueQuantity":{"value":68.4,"unit":"/min"}}
 ```
+
+## Verified measurement
+
+Pulse **90.4 bpm** and breathing **20.5 rpm** from a 95-second recording, emitted
+as FHIR R4 with confidence attached:
+
+```text
+8867-4     90.4 /min   Heart rate
+9279-1     20.5 /min   Respiratory rate
+```
+
+24 tests, no camera or API key required: `npm test`.
 
 ## Why
 
