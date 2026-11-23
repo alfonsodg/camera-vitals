@@ -5,3 +5,4 @@ node_modules/
 # Agent state (never committed, per global AGENTS.md)
 AGENTS.md
 REMOTE.md
+!docs/*.mp4

@@ -1,0 +1,172 @@
+{
+  "frames_per_step": 88,
+  "final_caption": "github.com/alfonsodg/camera-vitals · MIT",
+  "steps": [
+    {
+      "caption": "camera-vitals — turn a webcam into a LOINC-coded vital signs source",
+      "lines": [
+        [
+          "$ git clone https://github.com/alfonsodg/camera-vitals",
+          "prompt"
+        ],
+        [
+          "$ cd camera-vitals && npm install",
+          "prompt"
+        ],
+        [
+          "added 137 packages in 9s",
+          "dim"
+        ]
+      ]
+    },
+    {
+      "caption": "No camera or API key needed to verify the SDK integration",
+      "lines": [
+        [
+          "$ npm test",
+          "prompt"
+        ],
+        [
+          "",
+          "out"
+        ],
+        [
+          "ℹ tests 24",
+          "ok"
+        ],
+        [
+          "ℹ pass 24",
+          "ok"
+        ],
+        [
+          "ℹ fail 0",
+          "ok"
+        ],
+        [
+          "",
+          "out"
+        ],
+        [
+          "covers LOINC mapping, FHIR shape, id constraints,",
+          "dim"
+        ],
+        [
+          "second-opinion verdicts, transmission contract",
+          "dim"
+        ]
+      ]
+    },
+    {
+      "caption": "Real capture from a 95-second recording — face centred, chest visible",
+      "lines": [
+        [
+          "$ node scripts/e2e-video.mjs recording.mp4 60",
+          "prompt"
+        ],
+        [
+          "",
+          "out"
+        ],
+        [
+          "frames: 125 · readings: 1",
+          "out"
+        ],
+        [
+          "  654x validation 0  (kOk — conditions good)",
+          "dim"
+        ],
+        [
+          "  3x validation 1   (kNoFaceFound)",
+          "dim"
+        ]
+      ]
+    },
+    {
+      "caption": "The SDK measures on device and emits LOINC + FHIR R4",
+      "lines": [
+        [
+          "=== last reading (FHIR R4) ===",
+          "key"
+        ],
+        [
+          "",
+          "out"
+        ],
+        [
+          "8867-4      90.4 /min",
+          "ok"
+        ],
+        [
+          "",
+          "out"
+        ],
+        [
+          "resourceType: Observation",
+          "dim"
+        ],
+        [
+          "code:          http://loinc.org  8867-4  Heart rate",
+          "dim"
+        ],
+        [
+          "category:      vital-signs",
+          "dim"
+        ],
+        [
+          "valueQuantity: 90.4 /min  (UCUM)",
+          "dim"
+        ]
+      ]
+    },
+    {
+      "caption": "Second opinion — the camera confirms or contradicts another channel",
+      "lines": [
+        [
+          "agreeing reference (92 vs 90.4): concordant",
+          "ok"
+        ],
+        [
+          "  Camera reading agrees with the reference channel.",
+          "out"
+        ],
+        [
+          "",
+          "out"
+        ],
+        [
+          "disagreeing reference (120 vs 90.4): discordant",
+          "warn"
+        ],
+        [
+          "  Camera reading disagrees with the reference channel:",
+          "out"
+        ],
+        [
+          "  heart rate 90.4 vs 120. Review before acting.",
+          "out"
+        ]
+      ]
+    },
+    {
+      "caption": "Privacy: SDK telemetry disabled, video never leaves the device",
+      "lines": [
+        [
+          "enableTelemetry: false   → no usage data leaves the device",
+          "ok"
+        ],
+        [
+          "frames processed locally → not written, not uploaded",
+          "ok"
+        ],
+        [
+          "output is derived numbers → no imagery, no landmarks",
+          "ok"
+        ],
+        [
+          "general wellness only — not FDA-cleared, no diagnosis",
+          "warn"
+        ]
+      ]
+    }
+  ]
+}
